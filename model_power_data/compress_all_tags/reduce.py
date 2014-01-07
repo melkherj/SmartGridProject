@@ -6,7 +6,7 @@ from get_tag_series import get_next_tag_series
 import scipy as sp
 import numpy as np
 from numpy.linalg import norm
-from compression_methods import compress_all
+from compression_methods import compress_serialize_all
 
 next_line = None
 eof = False
@@ -16,4 +16,4 @@ while (not eof):
         break
     else:
         # Compress tag, print out compression
-        compress_all(df)
+        compress_serialize_all(df)
