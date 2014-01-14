@@ -39,12 +39,12 @@ def load_compressed_df(filename, save=False):
     tag_set = set([])
     date_set = set([])
     predictor_set = set([])
-    aggregates = defaultdict(list)
+    aggregates = defaultdict(dict)
     with open(filename, 'r') as f:
         for i,line in enumerate(f): #f is a lazy generator of lines
             if line[:3] == '^^^':
-                predictor, aggregate = line[3:].split('^')
-                aggregates[predictor].append(aggregate)
+                predictor, tag, aggregate = line[3:].split('^')
+                aggregates[predictor][tag] = aggregate
                 continue
             if i % 100000 == 0:
                 print i

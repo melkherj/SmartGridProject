@@ -44,7 +44,8 @@ class Compressor:
     def serialize_compressed(self, aggregate, df_compressed, outfile=sys.stdout):
         # Print the serialized aggregate compression information.  This is
         #  the compressed data shared across the entire tag
-        outfile.write('^^^%s^%s\n'%(self.name, aggregate) )
+        tag = df_compressed.index[0][0]
+        outfile.write('^^^%s^%s^%s\n'%(self.name, tag, aggregate) )
         # Print each serialized compressed tag/date
         for index, row in df_compressed.iterrows():
             tag, date = index
@@ -162,11 +163,10 @@ def compress_serialize_all(df, outfile=sys.stdout):
 
 def decompress_df(df_compressed, context, compressor):
     def decompress_group(df):
-        group = int(df.name)
-        aggregate = aggregates[group]
+        tag = context['tag_list'][int(df.name)]
+        aggregate = b64_decode_series(aggregates[tag])
         return compressor.decompress(aggregate, df)
     aggregates = context['aggregates'][compressor.name]
-    aggregates = map(b64_decode_series,aggregates)
     compressor_index = context['predictor_list'].index(compressor.name)
     df_compressed = df_compressed.xs(compressor_index, axis=1, level=1)
     df_series = df_compressed.groupby(df_compressed.index.get_level_values(0)) \
