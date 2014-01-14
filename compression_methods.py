@@ -30,8 +30,8 @@ class Compressor:
         global p
         aggregate, df_compressed = self.compress(df)
         df_compressed = pd.DataFrame(df_compressed, columns=['compressed'])
-        aggregate = b64_encode_series(aggregate)
         df_reconstructed = self.decompress(aggregate, df_compressed)
+        aggregate = b64_encode_series(aggregate)
         err = df-df_reconstructed
         df_compressed['error'] = err.apply(norm, axis=1)
         df_compressed['space'] = df_compressed['compressed'].apply(len) + \
@@ -116,6 +116,18 @@ class StepCompressor(Compressor):
         compressed = df[diff > d]
         return df
 
+class MeanCompressor(Compressor):
+    name = 'mean'
+
+    def compress(self, df):
+        compressed = df.ix[:,0].map(lambda row:'-')
+        mean = df.mean(axis=0).values
+        return mean, compressed
+        
+    def decompress(self, aggregate, df_compressed):
+        aggregate = pd.Series(aggregate)
+        return df_compressed['compressed'].apply(lambda row:aggregate)
+
 def perfect_step_compress(df):
     space = np.sum(np.diff(df, axis=1) > 0, axis=1) + 1 #The number of jumps in 
     space = space / 1440.0
@@ -135,8 +147,9 @@ def mean_compress(df):
 ### Run all compression methods ###
 constant_compressor = ConstantCompressor()
 step_compressor = StepCompressor()
+mean_compressor = MeanCompressor()
 all_compressors = dict( (compressor.name, compressor) for compressor in
-    [constant_compressor]) #, step_compressor] )
+    [constant_compressor, mean_compressor]) #, step_compressor] )
 
 def compress_serialize_all(df, outfile=sys.stdout):
     ''' For each registered compressor, compress the given DataFrame <df>
@@ -146,10 +159,18 @@ def compress_serialize_all(df, outfile=sys.stdout):
         compressor.serialize_compressed(aggregate, 
             df_compressed, outfile=outfile)
 
+
 def decompress_df(df_compressed, context, compressor):
+    def decompress_group(df):
+        group = int(df.name)
+        aggregate = aggregates[group]
+        return compressor.decompress(aggregate, df)
     aggregates = context['aggregates'][compressor.name]
-    df_series = compressor.decompress(aggregates, 
-        df_compressed.xs(0, axis=1, level=1))
+    aggregates = map(b64_decode_series,aggregates)
+    compressor_index = context['predictor_list'].index(compressor.name)
+    df_compressed = df_compressed.xs(compressor_index, axis=1, level=1)
+    df_series = df_compressed.groupby(df_compressed.index.get_level_values(0)) \
+        .apply(decompress_group)
     # Delete non-integer columns
     for column in df_series.columns:
         try:

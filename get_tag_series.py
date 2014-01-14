@@ -2,7 +2,6 @@ import sys, os
 sys.path.append(os.environ['SMART_GRID_SRC'])
 import numpy as np
 import pandas as pd
-from config import hdfs_part_root_dir, part_tag_path
 from serialize_tag_date import decode_line
 import datetime
 import subprocess
@@ -10,7 +9,7 @@ import subprocess
 def get_part_tag_dict():
     ''' Load a dictionary mapping tag->(part,seek) from a file '''
     part_tag_dict = {}
-    with open(part_tag_path, 'r') as f:
+    with open(os.environ['part_tag_path'], 'r') as f:
         for line in f:
             part, tag, seek = line.split('^')
             part_tag_dict[tag] = (part, int(seek))
@@ -66,7 +65,7 @@ def get_next_tag_series(f, first_line=None):
 def get_tag_series(tag):
     ''' Get the series and dates corresponding to the given tag'''
     part, seek = part_tag_dict[tag]
-    hdfs_path = hdfs_part_root_dir+'/'+part
+    hdfs_path = os.environ['hdfs_part_root_dir']+'/'+part
     f = hdfs_file_stream(hdfs_path)
     f.read(seek)
     df, _ = get_next_tag_series(f)

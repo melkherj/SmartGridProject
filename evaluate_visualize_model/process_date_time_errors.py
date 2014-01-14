@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import sys, os
 sys.path.append(os.environ['SMART_GRID_SRC'])
 import pandas as pd
@@ -97,4 +98,4 @@ def load_compressed_df(filename, save=False):
     return context, df
 
 if __name__ == '__main__':
-    load_compressed_df(sys.argv[1])
+    load_compressed_df(sys.argv[1], save=True)
