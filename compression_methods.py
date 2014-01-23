@@ -64,6 +64,18 @@ class Compressor:
         raise NotImplementedError("Please Implement this method")
         
 
+class TagConstantCompressor(Compressor):
+    name = 'tag_constant'
+    
+    def compress(self, df):
+        compressed = df.ix[:,0].map(lambda row:'-')
+        mean = df.mean(axis=1).mean(axis=0, dtype=np.float32)
+        return np.array([mean]), compressed
+
+    def decompress(self, aggregate, df_compressed):
+        aggregate = pd.Series(aggregate*np.ones(shape=(1440,)))
+        return df_compressed['compressed'].apply(lambda row:aggregate)
+
 class ConstantCompressor(Compressor):
     name = 'constant'
     
@@ -146,11 +158,12 @@ def mean_compress(df):
     return space, prediction
 
 ### Run all compression methods ###
+tag_constant_compressor = TagConstantCompressor()
 constant_compressor = ConstantCompressor()
 step_compressor = StepCompressor()
 mean_compressor = MeanCompressor()
 all_compressors = dict( (compressor.name, compressor) for compressor in
-    [constant_compressor, mean_compressor]) #, step_compressor] )
+    [tag_constant_compressor, constant_compressor, mean_compressor]) #, step_compressor] )
 
 def compress_serialize_all(df, outfile=sys.stdout):
     ''' For each registered compressor, compress the given DataFrame <df>
