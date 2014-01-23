@@ -19,8 +19,12 @@ part_tag_dict = get_part_tag_dict()
 
 def hdfs_file_stream(path):
     ''' Given a path to a file in hdfs, return a stream reading from this file '''
-    hdfs = os.environ['hdfs'].split()
-    cat = subprocess.Popen(hdfs + ["-cat",path], stdout=subprocess.PIPE)
+    if not 'hdfs' in os.environ:
+        hdfs_cat = os.environ['sshion'].split()+['hdfs -cat %s'%path,]
+    else:
+        hdfs_cat = os.environ['hdfs'].split() + ["-cat",path]
+    
+    cat = subprocess.Popen(hdfs_cat, stdout=subprocess.PIPE)
     return cat.stdout
  
 def get_next_tag_series(f, first_line=None):
