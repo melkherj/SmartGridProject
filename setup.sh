@@ -5,4 +5,4 @@ export hdfs_part_root_dir="/user/melkherj/preprocessed_power_data"
 # The directory containing space/error files
 export space_err_dir="${SMART_GRID_DATA}/summary_data/phase1/space_errors"
 # Directory to store output data.  An example: the compressed pandas/pickle files
-export data_dir="$(dirname $(pwd))/data"
+export compression_data_dir="${SMART_GRID_DATA}/compression"

@@ -19,8 +19,7 @@ part_tag_dict = get_part_tag_dict()
 
 def hdfs_file_stream(path):
     ''' Given a path to a file in hdfs, return a stream reading from this file '''
-    #TODO: read these paths from a config file
-    hdfs = ["/oasis/projects/nsf/csd181/hadoop/hadoop_installation/bin/hadoop","--config","/oasis/projects/nsf/csd181/hadoop/hadoop_shared/config","dfs"]
+    hdfs = os.environ['hdfs'].split()
     cat = subprocess.Popen(hdfs + ["-cat",path], stdout=subprocess.PIPE)
     return cat.stdout
  
