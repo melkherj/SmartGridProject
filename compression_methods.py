@@ -7,9 +7,12 @@ from numpy.linalg import norm
 import pandas as pd
 import sys
 import datetime
+from scipy.linalg import svd
 
 global p
 p = 0.05
+global k
+k_default = 10
 
 ### Generic Functions ###
 
@@ -141,29 +144,57 @@ class MeanCompressor(Compressor):
         aggregate = pd.Series(aggregate)
         return df_compressed['compressed'].apply(lambda row:aggregate)
 
-def perfect_step_compress(df):
-    space = np.sum(np.diff(df, axis=1) > 0, axis=1) + 1 #The number of jumps in 
-    space = space / 1440.0
-    prediction = df 
-    return space, prediction
+class SVDCompressor(Compressor):
+    name = 'svd'
 
-def mean_compress(df):
-    ''' Predict the mean '''
-    mean = df.mean(axis=0)
-    #Compression ratio = 1 day space / all days space = 1 / #days
-    space = 1/float(len(df)) 
-    space = np.array([space]*len(df))
-    # stack mean len(df) times
-    prediction = np.vstack([mean for _ in range(len(df))])
-    return space, prediction
+    def compress(self,df):
+        ''' Approximate day * minute signal using the top k eigen-vectors, 
+            each of length 1440 (minutes in a day) '''
+        # Matrix of signal: days * minutes
+        X = df.values
+        # (number of days, minutes per day)
+        (n,m) = X.shape 
+        # If there are only <n> days, we can't run SVD with k > n
+        k = min(k_default,n)
+        # Subtract off the mean from every row
+        M = X.mean(axis=0)
+        X2 = X - M
+        # SVD
+        try:
+            U,s,Vh = svd(X2, full_matrices=False)
+        except (np.linalg.linalg.LinAlgError, ValueError) as _:
+            U = np.zeros((n,n))
+            s = np.zeros((n,))
+            Vh = np.zeros((n,m))
+        U = U[:,:k]
+        s = s[:k]
+        Vh = Vh[:k,:]
+        df_compressed = pd.DataFrame(U, index=df.index, dtype=np.float32)
+        df_compressed = df_compressed.apply(b64_encode_series,axis=1)
+        return np.concatenate([M,s,Vh.flatten()]), df_compressed
+    
+    def decompress(self, aggregate, df_compressed):
+        (n,m) = (len(df_compressed),1440)
+        k = min(k_default,n)
+        df2 = df_compressed['compressed'].apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
+        M = aggregate[:m]
+        s = aggregate[m:(m+k)]
+        Vh = np.reshape(aggregate[(m+k):], (k,m))
+        reconstructed = np.dot(np.dot(df2.values,np.diag(s)),Vh) + M
+        return pd.DataFrame(reconstructed,index=df_compressed.index)
+
 
 ### Run all compression methods ###
 tag_constant_compressor = TagConstantCompressor()
 constant_compressor = ConstantCompressor()
 step_compressor = StepCompressor()
 mean_compressor = MeanCompressor()
+svd_compressor = SVDCompressor()
 all_compressors = dict( (compressor.name, compressor) for compressor in
-    [tag_constant_compressor, constant_compressor, mean_compressor]) #, step_compressor] )
+    [svd_compressor]
+#    [tag_constant_compressor, constant_compressor, 
+#     mean_compressor, svd_compressor]
+)
 
 def compress_serialize_all(df, outfile=sys.stdout):
     ''' For each registered compressor, compress the given DataFrame <df>
