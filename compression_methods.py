@@ -11,8 +11,7 @@ from scipy.linalg import svd
 
 global p
 p = 0.05
-global k
-k_default = 10
+svd_k = 2
 
 ### Generic Functions ###
 
@@ -147,6 +146,11 @@ class MeanCompressor(Compressor):
 class SVDCompressor(Compressor):
     name = 'svd'
 
+    def __init__(self,k):
+        ''' <k> gives the maximum number of singular vectors to use in 
+            approximating the original data matrix '''
+        self.k = k
+
     def compress(self,df):
         ''' Approximate day * minute signal using the top k eigen-vectors, 
             each of length 1440 (minutes in a day) '''
@@ -155,7 +159,7 @@ class SVDCompressor(Compressor):
         # (number of days, minutes per day)
         (n,m) = X.shape 
         # If there are only <n> days, we can't run SVD with k > n
-        k = min(k_default,n)
+        k = min(self.k,n)
         # Subtract off the mean from every row
         M = X.mean(axis=0)
         X2 = X - M
@@ -175,8 +179,8 @@ class SVDCompressor(Compressor):
     
     def decompress(self, aggregate, df_compressed):
         (n,m) = (len(df_compressed),1440)
-        k = min(k_default,n)
         df2 = df_compressed['compressed'].apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
+        k = df2.values.shape[1]
         M = aggregate[:m]
         s = aggregate[m:(m+k)]
         Vh = np.reshape(aggregate[(m+k):], (k,m))
@@ -189,7 +193,7 @@ tag_constant_compressor = TagConstantCompressor()
 constant_compressor = ConstantCompressor()
 step_compressor = StepCompressor()
 mean_compressor = MeanCompressor()
-svd_compressor = SVDCompressor()
+svd_compressor = SVDCompressor(svd_k)
 all_compressors = dict( (compressor.name, compressor) for compressor in
     [svd_compressor]
 #    [tag_constant_compressor, constant_compressor, 
