@@ -13,6 +13,5 @@ hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/phase
 ./stream.sh model_power_data/per_tag_analysis/stream_config.sh
 space_err_results="$SMART_GRID_DATA/summary_data/phase1/space_errors/all_compressed.txt"
 hdfs -getmerge /user/melkherj/all_compressed.txt $space_err_results
-./evaluate_visualize_model/process_date_time_errors.py $space_err_results
-
+nohup ./evaluate_visualize_model/process_date_time_errors.py /oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_compressed.txt &
 

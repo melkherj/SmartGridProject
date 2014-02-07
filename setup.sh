@@ -1,8 +1,11 @@
+#!/bin/bash
+
 ion_username="melkherj"
 ion="ion-21-14.sdsc.edu"
 
 # We're not on the io-node on gordon
-if [ `hostname` != $ion ]; then
+if [[ `hostname` != *sdsc.edu ]]
+then
     # For accessing hdfs
     export sshion="ssh ${ion_username}@${ion}"
     export SMART_GRID_DATA="$(pwd)/../data"
