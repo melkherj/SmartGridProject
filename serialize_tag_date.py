@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import base64
+import pandas as pd
 
 # Encode/decode numpy series
 def b64_encode_series(series):

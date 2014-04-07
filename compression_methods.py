@@ -1,16 +1,14 @@
 import sys, os, re
 sys.path.append(os.environ['SMART_GRID_SRC'])
 from serialize_tag_date import encode_date, decode_date, \
-    b64_encode_series, b64_decode_series
+    b64_encode_series, b64_decode_series, b64_pandas_encode_series, \
+    b64_pandas_decode_series
 import numpy as np
 from numpy.linalg import norm
 import pandas as pd
 import sys
 import datetime
 from scipy.linalg import svd
-
-global p
-p = 0.05
 svd_k = 2
 
 ### Generic Functions ###
@@ -18,6 +16,7 @@ svd_k = 2
 def encode_timestamp_date(d):
     return encode_date(( d.year, d.month, d.day ))
 
+p = 0.5
 
 ### One function for each compression method ###
 #     Every such function takes a data frame of the form:
@@ -38,9 +37,10 @@ class Compressor:
         df_compressed['error'] = err.apply(norm, axis=1)
         df_compressed['space'] = df_compressed['compressed'].apply(len) + \
             len(aggregate)/float(len(df_compressed))
-        p = p/float(len(df))
-        df_compressed['quantile_lower'] = err.quantile(p, axis=1)
-        df_compressed['quantile_upper'] = err.quantile(1-p, axis=1)
+        n = float(len(df)) #number of data points
+        df_compressed['quantile_lower'] = err.quantile(p/n, axis=1)
+        df_compressed['quantile_upper'] = err.quantile(1-p/n, axis=1)
+
         return aggregate, df_compressed
 
     def serialize_compressed(self, aggregate, df_compressed, outfile=sys.stdout):
@@ -107,16 +107,28 @@ class StepCompressor(Compressor):
         #  to be kept in step function
         d = diff.quantile(1 - self.steps/1440.0)
         diff = diff.fillna(d)
-        series = series[diff > d]
-        series.sort()
-        return b64_encode_series(series.index)+'^'+b64_encode_series(series)
+        compressed = series[diff > d]
+        compressed.ix[0] = series.ix[0]
+        compressed.ix[1399] = series.ix[1399]
+        return b64_pandas_encode_series(compressed)
         
     def decompress_series(self, compressed):
-        index = b64_decode_series(compressed).tolist()
-        index.append(1440)
+        print 'a'
+        step = b64_pandas_decode_series(compressed)
+        print step
+        exit()
         series = pd.Series([0]*1440, dtype=np.float32)
+        print 'c'
+        index = series.index.tolist()
+        index = [0]+index+[1440]
         for i in range(len(index)-1):
-            series[index[i]:index[i+1]] = series[index[i]]
+            series.ix[index[i]:index[i+1]] = step.ix[index[i+1]]
+        print 'd'
+        print step
+        print series.ix[:10]
+        print series.ix[300:350]
+        print series.ix[-10:]
+        exit()
         return series
 
     def compress(self, df):
@@ -124,12 +136,20 @@ class StepCompressor(Compressor):
         return np.array([]), compressed
         
     def decompress(self, aggregate, df_compressed):
+        print 'before'
         df = df_compressed['compressed'].apply(self.decompress_series)
-        diff = df.diff(axis=1)
-        d = diff.quantile(1 - self.steps/1440.0)
-        diff.fillna(d)
-        compressed = df[diff > d]
+        print 'after'
+        exit()
         return df
+#        diff = np.diff(df.values, axis=1)
+#        diff = pd.DataFrame(diff, index=df.index)
+#        d = diff.quantile(1 - self.steps/1440.0)
+#        diff.fillna(d)
+#        compressed = df[diff > d]
+#        print df.shape
+#        print df.ix[:5,:5]
+#        exit()
+#        return df
 
 class MeanCompressor(Compressor):
     name = 'mean'
@@ -195,11 +215,10 @@ step_compressor = StepCompressor()
 mean_compressor = MeanCompressor()
 svd_compressor = SVDCompressor(svd_k)
 all_compressors = dict( (compressor.name, compressor) for compressor in
-    [svd_compressor]
-#    [tag_constant_compressor, constant_compressor, 
-#     mean_compressor, svd_compressor]
+    [svd_compressor, mean_compressor]
+#[step_compressor, constant_compressor, mean_compressor] 
 )
-
+#svd_compressor, constant_compressor, mean_compressor]
 def compress_serialize_all(df, outfile=sys.stdout):
     ''' For each registered compressor, compress the given DataFrame <df>
         Serialize the compressed data, and output to <outfile> '''

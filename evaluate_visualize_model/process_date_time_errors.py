@@ -4,7 +4,6 @@ import sys, os
 sys.path.append(os.environ['SMART_GRID_SRC'])
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import random
 import pickle
 from collections import defaultdict
@@ -40,6 +39,8 @@ def load_compressed_df(filename, save=False):
     date_set = set([])
     predictor_set = set([])
     aggregates = defaultdict(dict)
+    with open(filename, 'r') as f:
+        lines = f.readlines()
     with open(filename, 'r') as f:
         for i,line in enumerate(f): #f is a lazy generator of lines
             if line[:3] == '^^^':
@@ -98,4 +99,4 @@ def load_compressed_df(filename, save=False):
     return context, df
 
 if __name__ == '__main__':
-    load_compressed_df(sys.argv[1], save=True)
+    context, df = load_compressed_df(sys.argv[1], save=True)

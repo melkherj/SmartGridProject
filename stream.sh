@@ -24,7 +24,8 @@ then
     -file $reducer -reducer $reducer \
     -input $input \
     -output $output \
-    -inputformat $inputformat
+    -inputformat $inputformat \
+    -cmdenv HOME=/home/melkherj
 else
     echo "\$partitioner is defined"
     # $partitioner is defined
@@ -40,7 +41,8 @@ else
     -input $input \
     -output $output \
     -inputformat $inputformat \
-    -partitioner $partitioner 
+    -partitioner $partitioner \
+    -cmdenv HOME=/home/melkherj 
 fi
 
 # -jobconf num.key.fields.for.partition=$map_out_keys \
