@@ -9,7 +9,7 @@ import pandas as pd
 import sys
 import datetime
 from scipy.linalg import svd
-svd_k = 2
+import pywt
 
 ### Generic Functions ###
 
@@ -93,6 +93,52 @@ class ConstantCompressor(Compressor):
         for i in range(1440):
             df[i] = df['const']
         del df['compressed'], df['const']
+        return df
+
+def fill_coeffs(coeffs,coeff_lens):
+    ''' Given the wavelet coefficients, fill in 0's for any but the first <levels> levels '''
+    l1 = len(coeffs)
+    for l in coeff_lens[l1:]:
+        coeffs.append(np.zeros(l))
+    return coeffs
+
+class HaarCompressor(Compressor):
+    name = 'haar'
+    
+    def __init__(self, k):
+        self.res = k #levels of wavelets to keep
+    
+    def compress_series(self, series):
+        coeffs = pywt.wavedec(series.values,'haar')
+        coeff_lens = [len(c) for c in coeffs]
+        levels = len(coeff_lens)
+        compressed = [levels]
+        compressed += coeff_lens
+        compressed += [c for l in coeffs[:self.res] for c in l]
+        compressed = np.array(compressed, dtype=np.float32)
+        return b64_encode_series(compressed)
+
+    def decompress_series(self, compressed):
+        compressed = b64_decode_series(compressed).tolist()
+        levels = int(compressed[0])
+        coeff_lens = map(int, compressed[1:1+levels])
+        coeffs_flattened = compressed[1+levels:]
+        # unflatten coeffs_flattened using coeff_lens
+        coeffs = []
+        for l in coeff_lens[:self.res]:
+            coeffs.append(coeffs_flattened[:l])
+            coeffs_flattened = coeffs_flattened[l:]
+        # Add 0's to the rest of coeffs
+        coeffs = fill_coeffs(coeffs, coeff_lens)
+        x = pywt.waverec(coeffs,'haar')
+        return pd.Series(x,dtype=np.float32)
+    
+    def compress(self, df):
+        compressed = df.apply(self.compress_series, axis=1)
+        return np.array([]), compressed
+
+    def decompress(self, aggregate, df_compressed):
+        df = df_compressed['compressed'].apply(self.decompress_series)
         return df
     
 class StepCompressor(Compressor):
@@ -195,12 +241,14 @@ class SVDCompressor(Compressor):
         Vh = Vh[:k,:]
         df_compressed = pd.DataFrame(U, index=df.index, dtype=np.float32)
         df_compressed = df_compressed.apply(b64_encode_series,axis=1)
+        k = np.array([k],dtype=np.float32)
         return np.concatenate([M,s,Vh.flatten()]), df_compressed
     
     def decompress(self, aggregate, df_compressed):
         (n,m) = (len(df_compressed),1440)
         df2 = df_compressed['compressed'].apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
         k = df2.values.shape[1]
+        print k
         M = aggregate[:m]
         s = aggregate[m:(m+k)]
         Vh = np.reshape(aggregate[(m+k):], (k,m))
@@ -213,9 +261,10 @@ tag_constant_compressor = TagConstantCompressor()
 constant_compressor = ConstantCompressor()
 step_compressor = StepCompressor()
 mean_compressor = MeanCompressor()
-svd_compressor = SVDCompressor(svd_k)
+svd_compressor = SVDCompressor(2)
+haar_compressor = HaarCompressor(6)
 all_compressors = dict( (compressor.name, compressor) for compressor in
-    [svd_compressor, mean_compressor]
+    [svd_compressor, mean_compressor, haar_compressor]
 #[step_compressor, constant_compressor, mean_compressor] 
 )
 #svd_compressor, constant_compressor, mean_compressor]
