@@ -25,7 +25,8 @@ then
     -input $input \
     -output $output \
     -inputformat $inputformat \
-    -cmdenv HOME=/home/melkherj
+    -cmdenv HOME=/home/melkherj \
+    -cmdenv LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 else
     echo "\$partitioner is defined"
     # $partitioner is defined
@@ -42,7 +43,8 @@ else
     -output $output \
     -inputformat $inputformat \
     -partitioner $partitioner \
-    -cmdenv HOME=/home/melkherj 
+    -cmdenv HOME=/home/melkherj \
+    -cmdenv LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 fi
 
 # -jobconf num.key.fields.for.partition=$map_out_keys \
