@@ -7,7 +7,7 @@ def sample_df(df, samples):
     rows = random.sample(df.index, samples)
     return df.ix[rows]
 
-def plot_daily_series(df, samples=5, title=None):
+def plot_daily_series(df, samples=5, title=None, ylim=None):
     ''' Given a dataframe containing daily series for sensors, 
         randomly sample <samples> days, and plot the daily variation for those days'''
     if not samples is None:
@@ -30,10 +30,12 @@ def plot_daily_series(df, samples=5, title=None):
     ax.legend(loc='center left', bbox_to_anchor=(1,0.5), fancybox=True, shadow=True)
     # Set reasonable x/y limits.  y slightly above/below the largest values
     plt.xlim([0,1440])
-    if yrange == 0:
-        ymax, ymin = (-1,1)
-    else:
-        ymax += 0.1*yrange
-        ymin -= 0.1*yrange
-    plt.ylim([ymin, ymax])
+    if ylim is None:
+        if yrange == 0:
+            ymax, ymin = (-1,1)
+        else:
+            ymax += 0.1*yrange
+            ymin -= 0.1*yrange
+        ylim = [ymin, ymax]  
+    plt.ylim(ylim)
     plt.show()
