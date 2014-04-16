@@ -24,7 +24,6 @@ def plot_daily_series(df, samples=5, title=None, ylim=None):
     if yrange == 0:
         yrange = 1
     #Add a small amount of random noise, so we can see overlapping lines
-    X = X + np.random.randn(*X.shape)*0.01*abs(yrange) 
     X.index = X.index.droplevel(0)
     X.T.plot(ax=ax, grid=False, legend=False, title=title)
     ax.legend(loc='center left', bbox_to_anchor=(1,0.5), fancybox=True, shadow=True)
