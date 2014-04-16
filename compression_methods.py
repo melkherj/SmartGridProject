@@ -270,14 +270,14 @@ def compress_serialize_all(df, outfile=sys.stdout):
             df_compressed, outfile=outfile)
 
 
-def decompress_df(df_compressed, context, compressor):
+def decompress_df(df_compressed, context, compressor_name):
+    compressor = compressors[compressor_name]
     def decompress_group(df):
         tag = context['tag_list'][int(df.name)]
         aggregate = b64_decode_series(aggregates[tag])
         return compressor.decompress(aggregate, df)
-    aggregates = context['aggregates'][compressor.name()]
-    compressor_index = context['predictor_list'].index(compressor.name())
-    df_compressed = df_compressed.xs(compressor_index, axis=1, level=1)
+    aggregates = context['aggregates'][compressor_name]
+    df_compressed = df_compressed.xs(compressor_name, axis=1, level=0)
     df_series = df_compressed.groupby(df_compressed.index.get_level_values(0)) \
         .apply(decompress_group)
     # Delete non-integer columns
