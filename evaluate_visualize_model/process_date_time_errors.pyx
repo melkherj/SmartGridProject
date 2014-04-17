@@ -73,13 +73,16 @@ def load_compressed_df(filename, save=False):
     date_hash = dict((date, i) for i,date in enumerate(date_list))
 
     print_time('Allocating tag/date/space/err/compressor arrays...')
-    cdef np.ndarray tags = np.zeros((n,),dtype=ITYPE)
-    cdef np.ndarray dates = np.zeros((n,),dtype=ITYPE)
-    cdef np.ndarray spaces = np.zeros((n,),dtype=FTYPE)
-    cdef np.ndarray errors = np.zeros((n,),dtype=FTYPE)
-    cdef np.ndarray compressors = np.zeros((n,),dtype=ITYPE)
+    n_compressors = len(compressor_list) #number of compressors
+    m = n / n_compressors #number of tag-days
+    cdef np.ndarray tags = np.zeros((m,),dtype=ITYPE)
+    cdef np.ndarray dates = np.zeros((m,),dtype=ITYPE)
+    cdef np.ndarray spaces = np.zeros((m,n_compressors),dtype=FTYPE)
+    cdef np.ndarray errors = np.zeros((m,n_compressors),dtype=FTYPE)
+    cdef np.ndarray compressors = np.zeros((m,n_compressors),dtype=ITYPE)
     # There isn't a nice cython type for objects, unfortunately
-    all_compressed = np.empty((n,),dtype=np.object)
+    all_compressed = np.empty((m,n_compressors),dtype=np.object)
+    c_index = defaultdict(int) #index for each compressor
     
     with open(filename, 'r') as f:
         print_time('Setting values in tag/date/space/err/compressor arrays...')
@@ -88,31 +91,33 @@ def load_compressed_df(filename, save=False):
             if i % 1000 == 0:
                 sys.stdout.write(('%20d'%i)+'\r'*20); sys.stdout.flush(); 
             if not line[:3] == '^^^':
-                compressor_index, tag_index, compressed, date_index, space, \
+                # c is the compressor index
+                c, tag_index, compressed, date_index, space, \
                     error = hash_line(line, compressor_hash, tag_hash, date_hash)
-                compressors[i] = compressor_index
-                tags[i] = tag_index
-                all_compressed[i] = compressed
-                dates[i] = date_index
-                spaces[i] = space
-                errors[i] = error
+                j = c_index[c]
+                if c == 0:
+                    tags[j] = tag_index
+                    dates[j] = date_index
+                all_compressed[j,c] = compressed
+                spaces[j,c] = space
+                errors[j,c] = error
+                c_index[c] += 1
                 i += 1
 
     # Convert to DataFrame 
     print_time('Combining arrays into a single DataFrame...')
-    tags_series = pd.Series(tags, name='tag')
-    dates_series = pd.Series(dates, name='date') 
-    compressed_series = pd.Series(all_compressed, name='compressed') 
-    spaces_series = pd.Series(spaces, name='space') 
-    errors_series = pd.Series(errors, name='error') 
-    compressors_series = pd.Series(compressors, name='compressor') 
-    df = pd.concat([compressors_series, tags_series, dates_series, 
-        compressed_series, spaces_series, errors_series], axis=1)
-    print_time('Reindexing DataFrame along tag/date/compressor...')
-    df = df.set_index(['tag','date','compressor'])
-    print_time('Unstacking DataFrame...')
-    df = df.unstack(level=-1)
-    df.columns = pd.MultiIndex.from_tuples([(compressor_list[i], sperr) for sperr,i in df.columns])
+    all_series = []
+    for c in range(n_compressors):
+        all_series.append(all_compressed[:,c])
+        all_series.append(spaces[:,c])
+        all_series.append(errors[:,c])
+    columns = pd.MultiIndex.from_tuples([(compressor_list[c], stype) 
+        for c in range(n_compressors) 
+        for stype in ['compressed','space','error']])
+    index = pd.MultiIndex.from_arrays([tags, dates],names=['tag','date'])
+    df = pd.concat(map(pd.Series, all_series), axis=1)
+    df.columns = columns
+    df.index = index
     context = {
              'tag_list':tag_list, 
              'tag_hash':tag_hash, 
