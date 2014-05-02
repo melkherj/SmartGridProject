@@ -74,7 +74,7 @@ class ConstantPerTagCompressor(Compressor):
         return np.array([mean]), compressed
 
     def decompress(self, aggregate, df_compressed):
-        aggregate = pd.Series(aggregate*np.ones(shape=(1440,)))
+        aggregate = pd.Series(aggregate*np.ones(shape=(self.d,)))
         return df_compressed['compressed'].apply(lambda row:aggregate)
 
 class ConstantPerTagDayCompressor(Compressor):
@@ -87,7 +87,7 @@ class ConstantPerTagDayCompressor(Compressor):
         return np.array([]), df_compressed
 
     def decompress_series(self, compressed):
-        x = b64_decode_series(compressed).tolist()*1440
+        x = b64_decode_series(compressed).tolist()*self.d
         return pd.Series(x,dtype=np.float32)
     
     def decompress(self, aggregate, df_compressed):
@@ -104,7 +104,8 @@ class WaveletCompressor(Compressor):
     def name(self):
         return '%s_wavelet_%d'%(self.wavelet, self.res)
     
-    def __init__(self, k, wavelet='haar'):
+    def __init__(self, k, wavelet='haar',d=1440):
+        self.d = d
         self.res = k #levels of wavelets to keep
         self.wavelet = wavelet
     
@@ -115,7 +116,8 @@ class WaveletCompressor(Compressor):
 
     def decompress_series(self, compressed):
         coeffs_flattened = b64_decode_series(compressed).tolist()
-        coeff_lens = [len(c) for c in pywt.wavedec(np.zeros((1440,)),self.wavelet)]
+        coeff_lens = [len(c) for c in 
+            pywt.wavedec(np.zeros((self.d,)),self.wavelet)]
         # unflatten coeffs_flattened using coeff_lens
         coeffs = []
         for l in coeff_lens[:self.res]:
@@ -138,18 +140,19 @@ class StepCompressor(Compressor):
     def name(self):
         return 'step_%d'%(self.steps)
     
-    def __init__(self, steps=10):
+    def __init__(self, steps=10, d=1440):
+        self.d = d
         self.steps = steps
 
     def compress_series(self, series):
         diff = series.diff()
-        # 1 - s/1440 gives the proportion of series values
+        # 1 - s/d gives the proportion of series values
         #  to be kept in step function
-        d = diff.quantile(1 - self.steps/1440.0)
+        d = diff.quantile(1 - self.steps/float(self.d))
         diff = diff.fillna(d)
         compressed = series[diff > d]
         compressed.ix[0] = series.ix[0]
-        compressed.ix[1399] = series.ix[1399]
+        compressed.ix[self.d-1] = series.ix[self.d-1]
         return b64_pandas_encode_series(compressed)
         
     def decompress_series(self, compressed):
@@ -157,10 +160,10 @@ class StepCompressor(Compressor):
         step = b64_pandas_decode_series(compressed)
         print step
         exit()
-        series = pd.Series([0]*1440, dtype=np.float32)
+        series = pd.Series([0]*self.d, dtype=np.float32)
         print 'c'
         index = series.index.tolist()
-        index = [0]+index+[1440]
+        index = [0]+index+[self.d]
         for i in range(len(index)-1):
             series.ix[index[i]:index[i+1]] = step.ix[index[i+1]]
         print 'd'
@@ -183,7 +186,7 @@ class StepCompressor(Compressor):
         return df
 #        diff = np.diff(df.values, axis=1)
 #        diff = pd.DataFrame(diff, index=df.index)
-#        d = diff.quantile(1 - self.steps/1440.0)
+#        d = diff.quantile(1 - self.steps/float(self.d))
 #        diff.fillna(d)
 #        compressed = df[diff > d]
 #        print df.shape
@@ -208,14 +211,15 @@ class SVDCompressor(Compressor):
     def name(self):
         return 'svd_%d'%self.k
 
-    def __init__(self,k):
+    def __init__(self,k,d=1440):
         ''' <k> gives the maximum number of singular vectors to use in 
             approximating the original data matrix '''
         self.k = k
+        self.d = d
 
     def compress(self,df):
         ''' Approximate day * minute signal using the top k eigen-vectors, 
-            each of length 1440 (minutes in a day) '''
+            each of length d (minutes in a day) '''
         # Matrix of signal: days * minutes
         X = df.values
         # (number of days, minutes per day)
@@ -241,7 +245,7 @@ class SVDCompressor(Compressor):
         return np.concatenate([M,s,Vh.flatten()]), df_compressed
     
     def decompress(self, aggregate, df_compressed):
-        (n,m) = (len(df_compressed),1440)
+        (n,m) = (len(df_compressed),self.d)
         df2 = df_compressed['compressed'].apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
         k = df2.values.shape[1]
         M = aggregate[:m]
@@ -293,5 +297,7 @@ def decompress_df(df_compressed, context, compressor_name):
     df_series['date'] = df_series['date'].apply(
         lambda d: np.datetime64(datetime.date(*decode_date(d))) )
     df_series = df_series.set_index( ['tag','date']  )
+    # Rescale columns to minutes per day
+    df_series.columns = [t*(1440/compressor.d) for t in df_series.columns]
     return df_series
 
