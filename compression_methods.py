@@ -65,6 +65,9 @@ class Compressor:
         
 
 class ConstantPerTagCompressor(Compressor):
+    def __init__(self,d=1440):
+        self.d = d
+
     def name(self):
         return 'constant_tag'
     
@@ -77,7 +80,18 @@ class ConstantPerTagCompressor(Compressor):
         aggregate = pd.Series(aggregate*np.ones(shape=(self.d,)))
         return df_compressed['compressed'].apply(lambda row:aggregate)
 
+    def all_space_err(self, df):
+        ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
+        X = df.values
+        (n,m) = X.shape
+        mse = [np.std(X)]
+        compression_ratio = [float(n*m)] #only 1 number
+        return compression_ratio, mse
+
 class ConstantPerTagDayCompressor(Compressor):
+    def __init__(self,d=1440):
+        self.d = d
+
     def name(self):
         return 'constant_tag_day'
     
@@ -92,6 +106,35 @@ class ConstantPerTagDayCompressor(Compressor):
     
     def decompress(self, aggregate, df_compressed):
         return df_compressed['compressed'].apply(self.decompress_series)
+
+    def all_space_err(self, df):
+        ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
+        X = df.values
+        (n,m) = X.shape
+        mse = [ norm(X.T-X.mean(axis=1))/np.sqrt(float(n*m)) ]
+        compression_ratio = [float(n*m)/n]
+        return compression_ratio, mse
+
+class ConstantPerTagMinuteCompressor(Compressor):
+    def name(self):
+        return 'constant_tag_minute'
+    
+    def compress(self, df):
+        compressed = df.ix[:,0].map(lambda row:'-')
+        mean = df.mean(axis=0).values
+        return mean, compressed
+        
+    def decompress(self, aggregate, df_compressed):
+        aggregate = pd.Series(aggregate)
+        return df_compressed['compressed'].apply(lambda row:aggregate)
+    
+    def all_space_err(self, df):
+        ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
+        X = df.values
+        (n,m) = X.shape
+        mse = [ norm(X-X.mean(axis=0))/np.sqrt(float(n*m)) ]
+        compression_ratio = [float(n*m)/m]
+        return compression_ratio, mse
 
 def fill_coeffs(coeffs,coeff_lens):
     ''' Given the wavelet coefficients, fill in 0's for any but the first <levels> levels '''
@@ -108,7 +151,40 @@ class WaveletCompressor(Compressor):
         self.d = d
         self.res = k #levels of wavelets to keep
         self.wavelet = wavelet
+
+    def series_space_err(self, x):
+        ''' For a 1D numpy array, get the space vs. error tradeoff '''
+        spaces = []
+        errs = []
+        space = 0
+        coeffs = pywt.wavedec(x,self.wavelet)
+        coeff_lens = [len(c) for c in coeffs]
+
+        for k in range(1,len(coeff_lens)):
+            coeffs_reconstructed = fill_coeffs(coeffs[:k],coeff_lens)
+            x2 = pywt.waverec(coeffs_reconstructed, self.wavelet)
+            space += len(coeffs[k-1])
+            spaces.append(space)
+            errs.append(norm(x-x2))
+        return spaces,errs
     
+    def all_space_err(self, df):
+        ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
+        all_spaces = []
+        all_errs = []
+        X = df.values
+        (n,m) = X.shape
+        for x in X:
+            spaces, errs = self.series_space_err(x)
+            all_spaces.append(spaces)
+            all_errs.append(errs)
+        S = np.vstack(all_spaces)
+        E = np.vstack(all_errs)
+        # space taken / number of entries
+        compression_ratio = float(n*m)/S.sum(axis=0)
+        mse = norm(E,axis=0)/np.sqrt(float(n*m)) #mean square error
+        return compression_ratio, mse
+
     def compress_series(self, series):
         coeffs = pywt.wavedec(series.values,self.wavelet)
         coeffs_flattened = [c for l in coeffs[:self.res] for c in l]
@@ -194,19 +270,6 @@ class StepCompressor(Compressor):
 #        exit()
 #        return df
 
-class ConstantPerTagMinuteCompressor(Compressor):
-    def name(self):
-        return 'constant_tag_minute'
-    
-    def compress(self, df):
-        compressed = df.ix[:,0].map(lambda row:'-')
-        mean = df.mean(axis=0).values
-        return mean, compressed
-        
-    def decompress(self, aggregate, df_compressed):
-        aggregate = pd.Series(aggregate)
-        return df_compressed['compressed'].apply(lambda row:aggregate)
-
 class SVDCompressor(Compressor):
     def name(self):
         return 'svd_%d'%self.k
@@ -254,6 +317,30 @@ class SVDCompressor(Compressor):
         reconstructed = np.dot(np.dot(df2.values,np.diag(s)),Vh) + M
         return pd.DataFrame(reconstructed,index=df_compressed.index)
 
+    def all_space_err(self, df):
+        # Matrix of signal: days * minutes
+        X = df.values
+        # (number of days, minutes per day)
+        (n,m) = X.shape
+        
+        # Subtract off the mean from every row
+        M = X.mean(axis=0)
+        X2 = X - M
+        # SVD
+        try:
+            U,s,Vh = svd(X2, full_matrices=False)
+        except (np.linalg.linalg.LinAlgError, ValueError) as _:
+            U = np.zeros((n,n))
+            s = np.zeros((n,))
+            Vh = np.zeros((n,m))
+        
+        errs = np.sqrt(sum(s**2) - np.cumsum(s**2))
+        ks = range(1,n+1)
+        d = self.d
+        # average + eigenvectors + projections + eigenvalues
+        compression_ratio = float(n*m) / np.array([1 + d + k*d + n*k + k for k in ks])
+        mse = errs/np.sqrt(float(n*m)) #mean square error
+        return compression_ratio, mse
 
 ### Run all compression methods ###
 compressors = dict( (compressor.name(),compressor) for compressor in [
@@ -273,6 +360,12 @@ def compress_serialize_all(df, outfile=sys.stdout):
         compressor.serialize_compressed(aggregate, 
             df_compressed, outfile=outfile)
 
+def all_space_err(df, outfile=sys.stdout):
+    for compressor in compressors.values():
+        spaces,errs = compressor.all_space_err(df)
+        se = b64_encode_series(np.concatenate([spaces,errs]))  
+        tag = df.index[0][0]
+        outfile.write('%s^%s^%s\n'%(tag,compressor.name(),se))
 
 def decompress_df(df_compressed, context, compressor_name):
     compressor = compressors[compressor_name]
