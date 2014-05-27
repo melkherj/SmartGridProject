@@ -3,7 +3,7 @@ mapper=/bin/cat
 reducer="$SMART_GRID_SRC/model_power_data/compress_all_tags/reduce.py"
 map_tasks=50
 reduce_tasks=50
-input=/user/melkherj/preprocessed_power_data
+input=/user/melkherj/clean_preprocessed_power_data
 output=/user/melkherj/all_space_err.txt
 inputformat=TextInputFormat
 # This is how you handle keying on values

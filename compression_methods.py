@@ -17,6 +17,7 @@ def encode_timestamp_date(d):
     return encode_date(( d.year, d.month, d.day ))
 
 p = 0.5
+dim = 1440
 
 ### One function for each compression method ###
 #     Every such function takes a data frame of the form:
@@ -28,7 +29,6 @@ class Compressor:
     def compress_evaluate(self, df):
         global p
         aggregate, df_compressed = self.compress(df)
-        df_compressed = pd.DataFrame(df_compressed, columns=['compressed'])
         df_reconstructed = self.decompress(aggregate, df_compressed)
         aggregate = b64_encode_series(aggregate)
         err = df-df_reconstructed
@@ -65,11 +65,10 @@ class Compressor:
         
 
 class ConstantPerTagCompressor(Compressor):
-    def __init__(self,d=1440):
-        self.d = d
+    basename = 'constant_tag'
 
     def name(self):
-        return 'constant_tag'
+        return basename
     
     def compress(self, df):
         compressed = df.ix[:,0].map(lambda row:'-')
@@ -77,10 +76,11 @@ class ConstantPerTagCompressor(Compressor):
         return np.array([mean]), compressed
 
     def decompress(self, aggregate, df_compressed):
-        aggregate = pd.Series(aggregate*np.ones(shape=(self.d,)))
-        return df_compressed['compressed'].apply(lambda row:aggregate)
+        aggregate = pd.Series(aggregate*np.ones(shape=(dim,)))
+        return df_compressed.apply(lambda row:aggregate)
 
-    def all_space_err(self, df):
+    @classmethod
+    def all_space_err(cls,df):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
@@ -89,11 +89,10 @@ class ConstantPerTagCompressor(Compressor):
         return compression_ratio, mse
 
 class ConstantPerTagDayCompressor(Compressor):
-    def __init__(self,d=1440):
-        self.d = d
-
+    basename = 'constant_tag_day'
+    
     def name(self):
-        return 'constant_tag_day'
+        return basename 
     
     def compress(self, df):
         df_compressed = pd.Series(df.mean(axis=1), dtype=np.float32)
@@ -101,13 +100,14 @@ class ConstantPerTagDayCompressor(Compressor):
         return np.array([]), df_compressed
 
     def decompress_series(self, compressed):
-        x = b64_decode_series(compressed).tolist()*self.d
+        x = b64_decode_series(compressed).tolist()*dim
         return pd.Series(x,dtype=np.float32)
     
     def decompress(self, aggregate, df_compressed):
-        return df_compressed['compressed'].apply(self.decompress_series)
+        return df_compressed.apply(self.decompress_series)
 
-    def all_space_err(self, df):
+    @classmethod
+    def all_space_err(cls,df):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
@@ -116,8 +116,10 @@ class ConstantPerTagDayCompressor(Compressor):
         return compression_ratio, mse
 
 class ConstantPerTagMinuteCompressor(Compressor):
+    basename = 'constant_tag_minute'
+
     def name(self):
-        return 'constant_tag_minute'
+        return basename
     
     def compress(self, df):
         compressed = df.ix[:,0].map(lambda row:'-')
@@ -126,9 +128,10 @@ class ConstantPerTagMinuteCompressor(Compressor):
         
     def decompress(self, aggregate, df_compressed):
         aggregate = pd.Series(aggregate)
-        return df_compressed['compressed'].apply(lambda row:aggregate)
+        return df_compressed.apply(lambda row:aggregate)
     
-    def all_space_err(self, df):
+    @classmethod
+    def all_space_err(cls,df):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
@@ -144,38 +147,41 @@ def fill_coeffs(coeffs,coeff_lens):
     return coeffs
 
 class WaveletCompressor(Compressor):
+    basename = 'wavelet'
+
     def name(self):
-        return '%s_wavelet_%d'%(self.wavelet, self.res)
+        return '%s-%s-%d'%(basename, self.wavelet, self.res)
     
-    def __init__(self, k, wavelet='haar',d=1440):
-        self.d = d
+    def __init__(self,wavelet,k):
         self.res = k #levels of wavelets to keep
         self.wavelet = wavelet
 
-    def series_space_err(self, x):
+    @classmethod
+    def series_space_err(cls,x,wavelet):
         ''' For a 1D numpy array, get the space vs. error tradeoff '''
         spaces = []
         errs = []
         space = 0
-        coeffs = pywt.wavedec(x,self.wavelet)
+        coeffs = pywt.wavedec(x,wavelet)
         coeff_lens = [len(c) for c in coeffs]
 
         for k in range(1,len(coeff_lens)):
             coeffs_reconstructed = fill_coeffs(coeffs[:k],coeff_lens)
-            x2 = pywt.waverec(coeffs_reconstructed, self.wavelet)
+            x2 = pywt.waverec(coeffs_reconstructed, wavelet)
             space += len(coeffs[k-1])
             spaces.append(space)
             errs.append(norm(x-x2))
         return spaces,errs
     
-    def all_space_err(self, df):
+    @classmethod
+    def all_space_err(cls,df):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         all_spaces = []
         all_errs = []
         X = df.values
         (n,m) = X.shape
         for x in X:
-            spaces, errs = self.series_space_err(x)
+            spaces, errs = cls.series_space_err(x,'haar')
             all_spaces.append(spaces)
             all_errs.append(errs)
         S = np.vstack(all_spaces)
@@ -193,7 +199,7 @@ class WaveletCompressor(Compressor):
     def decompress_series(self, compressed):
         coeffs_flattened = b64_decode_series(compressed).tolist()
         coeff_lens = [len(c) for c in 
-            pywt.wavedec(np.zeros((self.d,)),self.wavelet)]
+            pywt.wavedec(np.zeros((dim,)),self.wavelet)]
         # unflatten coeffs_flattened using coeff_lens
         coeffs = []
         for l in coeff_lens[:self.res]:
@@ -209,26 +215,27 @@ class WaveletCompressor(Compressor):
         return np.array([]), compressed
 
     def decompress(self, aggregate, df_compressed):
-        df = df_compressed['compressed'].apply(self.decompress_series)
+        df = df_compressed.apply(self.decompress_series)
         return df
     
 class StepCompressor(Compressor):
+    basename = 'step'
+
     def name(self):
-        return 'step_%d'%(self.steps)
+        return '%s-%d'%(basename,self.steps)
     
-    def __init__(self, steps=10, d=1440):
-        self.d = d
+    def __init__(self, steps=10):
         self.steps = steps
 
     def compress_series(self, series):
         diff = series.diff()
         # 1 - s/d gives the proportion of series values
         #  to be kept in step function
-        d = diff.quantile(1 - self.steps/float(self.d))
+        d = diff.quantile(1 - self.steps/float(dim))
         diff = diff.fillna(d)
         compressed = series[diff > d]
         compressed.ix[0] = series.ix[0]
-        compressed.ix[self.d-1] = series.ix[self.d-1]
+        compressed.ix[dim-1] = series.ix[dim-1]
         return b64_pandas_encode_series(compressed)
         
     def decompress_series(self, compressed):
@@ -236,10 +243,10 @@ class StepCompressor(Compressor):
         step = b64_pandas_decode_series(compressed)
         print step
         exit()
-        series = pd.Series([0]*self.d, dtype=np.float32)
+        series = pd.Series([0]*dim, dtype=np.float32)
         print 'c'
         index = series.index.tolist()
-        index = [0]+index+[self.d]
+        index = [0]+index+[dim]
         for i in range(len(index)-1):
             series.ix[index[i]:index[i+1]] = step.ix[index[i+1]]
         print 'd'
@@ -256,13 +263,13 @@ class StepCompressor(Compressor):
         
     def decompress(self, aggregate, df_compressed):
         print 'before'
-        df = df_compressed['compressed'].apply(self.decompress_series)
+        df = df_compressed.apply(self.decompress_series)
         print 'after'
         exit()
         return df
 #        diff = np.diff(df.values, axis=1)
 #        diff = pd.DataFrame(diff, index=df.index)
-#        d = diff.quantile(1 - self.steps/float(self.d))
+#        d = diff.quantile(1 - self.steps/float(dim))
 #        diff.fillna(d)
 #        compressed = df[diff > d]
 #        print df.shape
@@ -271,14 +278,15 @@ class StepCompressor(Compressor):
 #        return df
 
 class SVDCompressor(Compressor):
-    def name(self):
-        return 'svd_%d'%self.k
+    basename = 'svd'
 
-    def __init__(self,k,d=1440):
+    def name(self):
+        return '%s-%d'%(basename,self.k)
+
+    def __init__(self,k):
         ''' <k> gives the maximum number of singular vectors to use in 
             approximating the original data matrix '''
         self.k = k
-        self.d = d
 
     def compress(self,df):
         ''' Approximate day * minute signal using the top k eigen-vectors, 
@@ -308,16 +316,17 @@ class SVDCompressor(Compressor):
         return np.concatenate([M,s,Vh.flatten()]), df_compressed
     
     def decompress(self, aggregate, df_compressed):
-        (n,m) = (len(df_compressed),self.d)
-        df2 = df_compressed['compressed'].apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
+        (n,m) = (len(df_compressed),dim)
+        df2 = df_compressed.apply(lambda s:pd.Series(b64_decode_series(s),dtype=np.float32))
         k = df2.values.shape[1]
         M = aggregate[:m]
         s = aggregate[m:(m+k)]
         Vh = np.reshape(aggregate[(m+k):], (k,m))
         reconstructed = np.dot(np.dot(df2.values,np.diag(s)),Vh) + M
         return pd.DataFrame(reconstructed,index=df_compressed.index)
-
-    def all_space_err(self, df):
+    
+    @classmethod
+    def all_space_err(cls,df):
         # Matrix of signal: days * minutes
         X = df.values
         # (number of days, minutes per day)
@@ -336,20 +345,18 @@ class SVDCompressor(Compressor):
         
         errs = np.sqrt(sum(s**2) - np.cumsum(s**2))
         ks = range(1,n+1)
-        d = self.d
         # average + eigenvectors + projections + eigenvalues
-        compression_ratio = float(n*m) / np.array([1 + d + k*d + n*k + k for k in ks])
+        compression_ratio = float(n*m) / np.array([1 + dim + k*dim + n*k + k for k in ks])
         mse = errs/np.sqrt(float(n*m)) #mean square error
         return compression_ratio, mse
 
 ### Run all compression methods ###
-compressors = dict( (compressor.name(),compressor) for compressor in [
-    ConstantPerTagCompressor(),
-    ConstantPerTagMinuteCompressor(),
-    ConstantPerTagDayCompressor(),
-#    StepCompressor(),
-    SVDCompressor(2),
-    WaveletCompressor(4, wavelet='haar')
+compressors = dict( (compressor.basename,compressor) for compressor in [
+    ConstantPerTagCompressor,
+    ConstantPerTagMinuteCompressor,
+    ConstantPerTagDayCompressor,
+    SVDCompressor,
+    WaveletCompressor
 ])
 
 def compress_serialize_all(df, outfile=sys.stdout):
@@ -365,7 +372,7 @@ def all_space_err(df, outfile=sys.stdout):
         spaces,errs = compressor.all_space_err(df)
         se = b64_encode_series(np.concatenate([spaces,errs]))  
         tag = df.index[0][0]
-        outfile.write('%s^%s^%s\n'%(tag,compressor.name(),se))
+        outfile.write('%s^%s^%s\n'%(tag,compressor.basename,se))
 
 def decompress_df(df_compressed, context, compressor_name):
     compressor = compressors[compressor_name]
@@ -391,6 +398,6 @@ def decompress_df(df_compressed, context, compressor_name):
         lambda d: np.datetime64(datetime.date(*decode_date(d))) )
     df_series = df_series.set_index( ['tag','date']  )
     # Rescale columns to minutes per day
-    df_series.columns = [t*(1440/compressor.d) for t in df_series.columns]
+    df_series.columns = [t*(dim/compressor.d) for t in df_series.columns]
     return df_series
 
