@@ -84,9 +84,9 @@ class ConstantPerTagCompressor(Compressor):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
-        mse = [np.std(X)]
-        compression_ratio = [float(n*m)] #only 1 number
-        return compression_ratio, mse
+        mse = [ norm(X-X.mean())**2/float(n*m)]
+        space = [1.0] #only 1 number
+        return space, mse
 
 class ConstantPerTagDayCompressor(Compressor):
     basename = 'constant_tag_day'
@@ -111,9 +111,9 @@ class ConstantPerTagDayCompressor(Compressor):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
-        mse = [ norm(X.T-X.mean(axis=1))/np.sqrt(float(n*m)) ]
-        compression_ratio = [float(n*m)/n]
-        return compression_ratio, mse
+        mse = [ norm(X.T-X.mean(axis=1))**2/float(n*m) ]
+        space = [float(n)]
+        return space, mse
 
 class ConstantPerTagMinuteCompressor(Compressor):
     basename = 'constant_tag_minute'
@@ -135,9 +135,9 @@ class ConstantPerTagMinuteCompressor(Compressor):
         ''' Get the space vs. error tradeoff for a sensor, each row a time series'''
         X = df.values
         (n,m) = X.shape
-        mse = [ norm(X-X.mean(axis=0))/np.sqrt(float(n*m)) ]
-        compression_ratio = [float(n*m)/m]
-        return compression_ratio, mse
+        mse = [ norm(X-X.mean(axis=0))**2/float(n*m) ]
+        space = [float(m)]
+        return space, mse
 
 def fill_coeffs(coeffs,coeff_lens):
     ''' Given the wavelet coefficients, fill in 0's for any but the first <levels> levels '''
@@ -187,9 +187,9 @@ class WaveletCompressor(Compressor):
         S = np.vstack(all_spaces)
         E = np.vstack(all_errs)
         # space taken / number of entries
-        compression_ratio = float(n*m)/S.sum(axis=0)
-        mse = norm(E,axis=0)/np.sqrt(float(n*m)) #mean square error
-        return compression_ratio, mse
+        space = S.sum(axis=0)
+        mse = norm(E,axis=0)**2/float(n*m) #mean square error
+        return space, mse
 
     def compress_series(self, series):
         coeffs = pywt.wavedec(series.values,self.wavelet)
@@ -343,12 +343,12 @@ class SVDCompressor(Compressor):
             s = np.zeros((n,))
             Vh = np.zeros((n,m))
         
-        errs = np.sqrt(sum(s**2) - np.cumsum(s**2))
+        errs = sum(s**2) - np.cumsum(s**2)
         ks = range(1,n+1)
         # average + eigenvectors + projections + eigenvalues
-        compression_ratio = float(n*m) / np.array([1 + dim + k*dim + n*k + k for k in ks])
-        mse = errs/np.sqrt(float(n*m)) #mean square error
-        return compression_ratio, mse
+        space = np.array([1 + dim + k*dim + n*k + k for k in ks])
+        mse = errs/float(n*m) #mean square error
+        return space, mse
 
 ### Run all compression methods ###
 compressors = dict( (compressor.basename,compressor) for compressor in [
