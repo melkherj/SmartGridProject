@@ -375,10 +375,6 @@ def compress_serialize_best(df, outfile=sys.stdout):
     else:
         compressor = compressors[c]()
     aggregate, df_compressed = compressor.compress_evaluate(df)
-    #print aggregate
-    #print df_compressed
-    #print compressor
-    #exit()
     compressor.serialize_compressed(aggregate, 
         df_compressed, outfile=outfile)
 
