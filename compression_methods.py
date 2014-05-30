@@ -16,6 +16,10 @@ import pywt
 def encode_timestamp_date(d):
     return encode_date(( d.year, d.month, d.day ))
 
+# Best compressor for each sensor
+best_path = os.path.join(os.environ['compression_data_dir'],'best.pandas')
+best = pd.load(best_path)
+
 p = 0.5
 dim = 1440
 
@@ -30,6 +34,7 @@ class Compressor:
         global p
         aggregate, df_compressed = self.compress(df)
         df_reconstructed = self.decompress(aggregate, df_compressed)
+        df_compressed = pd.DataFrame(df_compressed,columns=['compressed'])
         aggregate = b64_encode_series(aggregate)
         err = df-df_reconstructed
         df_compressed['error'] = err.apply(norm, axis=1)
@@ -68,7 +73,7 @@ class ConstantPerTagCompressor(Compressor):
     basename = 'constant_tag'
 
     def name(self):
-        return basename
+        return self.basename
     
     def compress(self, df):
         compressed = df.ix[:,0].map(lambda row:'-')
@@ -92,7 +97,7 @@ class ConstantPerTagDayCompressor(Compressor):
     basename = 'constant_tag_day'
     
     def name(self):
-        return basename 
+        return self.basename 
     
     def compress(self, df):
         df_compressed = pd.Series(df.mean(axis=1), dtype=np.float32)
@@ -119,7 +124,7 @@ class ConstantPerTagMinuteCompressor(Compressor):
     basename = 'constant_tag_minute'
 
     def name(self):
-        return basename
+        return self.basename
     
     def compress(self, df):
         compressed = df.ix[:,0].map(lambda row:'-')
@@ -150,9 +155,9 @@ class WaveletCompressor(Compressor):
     basename = 'wavelet'
 
     def name(self):
-        return '%s-%s-%d'%(basename, self.wavelet, self.res)
+        return '%s-%s-%d'%(self.basename, self.wavelet, self.res)
     
-    def __init__(self,wavelet,k):
+    def __init__(self,k,wavelet='haar'):
         self.res = k #levels of wavelets to keep
         self.wavelet = wavelet
 
@@ -359,6 +364,24 @@ compressors = dict( (compressor.basename,compressor) for compressor in [
     WaveletCompressor
 ])
 
+def compress_serialize_best(df, outfile=sys.stdout):
+    ''' For each registered compressor, compress the given DataFrame <df>
+        Serialize the compressed data, and output to <outfile> '''
+    tag = df.index[0][0]
+    c = best.ix[tag]['compressor']
+    k = best.ix[tag]['k']
+    if (c in ['wavelet','svd']):
+        compressor = compressors[c](k)
+    else:
+        compressor = compressors[c]()
+    aggregate, df_compressed = compressor.compress_evaluate(df)
+    #print aggregate
+    #print df_compressed
+    #print compressor
+    #exit()
+    compressor.serialize_compressed(aggregate, 
+        df_compressed, outfile=outfile)
+
 def compress_serialize_all(df, outfile=sys.stdout):
     ''' For each registered compressor, compress the given DataFrame <df>
         Serialize the compressed data, and output to <outfile> '''
@@ -372,7 +395,7 @@ def all_space_err(df, outfile=sys.stdout):
         spaces,errs = compressor.all_space_err(df)
         se = b64_encode_series(np.concatenate([spaces,errs]))  
         tag = df.index[0][0]
-        outfile.write('%s^%s^%s\n'%(tag,compressor.basename,se))
+        outfile.write('%s^%s^%s\n'%(tag,compressor.name(),se))
 
 def decompress_df(df_compressed, context, compressor_name):
     compressor = compressors[compressor_name]
