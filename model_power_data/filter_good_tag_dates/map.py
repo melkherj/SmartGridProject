@@ -9,4 +9,4 @@ good_dates = set(date.strip() for date in open(os.path.join(summary_data_path,'g
 for line in sys.stdin:
     tag,date = line.split('^',2)[:2]
     if (tag in set(good_tags)) and (date in good_dates):
-        print line
+        print line.strip()
