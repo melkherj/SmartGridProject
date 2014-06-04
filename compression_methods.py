@@ -393,15 +393,32 @@ def all_space_err(df, outfile=sys.stdout):
         tag = df.index[0][0]
         outfile.write('%s^%s^%s\n'%(tag,compressor.name(),se))
 
-def decompress_df(df_compressed, context, compressor_name):
-    compressor = compressors[compressor_name]
+def int_if_possible(x):
+    ''' Try to convert x to an int.  Return this if successful, else return the 
+        original x '''
+    try:
+        return int(x)
+    except ValueError:
+        return x
+
+def str_to_compressor(name_hyperparameters):
+    '''Given a string <name_hyperparameters> of the form <compressor>-hyper0-hyper1-...,
+        deserialize into the compression method '''
+    basename = name_hyperparameters.split('-',1)[0]
+    hyperparameters = name_hyperparameters.split('-')[1:]
+    hyperparameters = map(int_if_possible, hyperparameters)
+    return compressors[basename](*hyperparameters)
+
+def decompress_df(df_compressed, context, compressor_name, meta=False):
+    ''' The meta argument tells if we're decompressing from a meta-compression
+        frame '''
+    compressor = str_to_compressor(compressor_name)
     def decompress_group(df):
         tag = context['tag_list'][int(df.name)]
         aggregate = b64_decode_series(aggregates[tag])
         return compressor.decompress(aggregate, df)
     aggregates = context['aggregates'][compressor_name]
-    df_compressed = df_compressed.xs(compressor_name, axis=1, level=0)
-    df_series = df_compressed.groupby(df_compressed.index.get_level_values(0)) \
+    df_series = df_compressed['compressed'].groupby(df_compressed.index.get_level_values(0)) \
         .apply(decompress_group)
     # Delete non-integer columns
     for column in df_series.columns:
@@ -409,14 +426,15 @@ def decompress_df(df_compressed, context, compressor_name):
             _ = int(column)
         except:
             del df_series[column]
-    df_series['tag'] = [context['tag_list'][i] 
+    df_series['tag'] = [context['tag_list'][i]
         for i in df_compressed.index.get_level_values(0)]
-    df_series['date'] = [context['date_list'][i] 
+    df_series['date'] = [context['date_list'][i]
         for i in df_compressed.index.get_level_values(1)]
     df_series['date'] = df_series['date'].apply(
         lambda d: np.datetime64(datetime.date(*decode_date(d))) )
     df_series = df_series.set_index( ['tag','date']  )
     # Rescale columns to minutes per day
-    df_series.columns = [t*(dim/compressor.d) for t in df_series.columns]
+    df_series.columns = [t*(1440/dim) for t in df_series.columns]
     return df_series
 
+                                                                443,0-1       B
