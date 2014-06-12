@@ -10,6 +10,5 @@ Clone this github directory into SmartGridProject/src
 
 Create another directory SmartGridProject/data.  
 
-Run the script `run_all_analysis.sh`.  This will:
-* load the smart grid data, preprocess it
-* 
+In SmartGridProject/src, run source setup.sh
+
