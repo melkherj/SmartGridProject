@@ -3,7 +3,7 @@ SmartGridProject
 
 A system for compressing smart grid data, and allowing queries on the compressed representation.  
 
-# Getting Started #
+### Getting Started ###
 Create a directory, let's say SmartGridProject.  
 
 Clone this github directory into SmartGridProject/src
@@ -14,7 +14,7 @@ In `setup.sh` replace `ion_username` with your ion-21-14 username.  The directio
 
 In SmartGridProject/src, run `source setup.sh`
 
-# Load Data into HDFS #
+### Load Data into HDFS ###
 Run 
 ```bash 
 hdfs -ls /user/melkherj/unprocessed_power_csvs
@@ -26,13 +26,13 @@ hdfs -copyFromLocal /oasis/projects/nsf/csd181/melkherj/PI_data/PI_datasets/oled
 ```
 This won't work if the file `/user/melkherj/unprocessed_power_csvs` in hdfs already exists
 
-# Preprocess data in HDFS #
+### Preprocess data in HDFS ###
 Run: 
 ```bash
 ./stream.sh preprocess_power_data/stream_config.sh
 ```
 
-# Create Seek Location Hash #
+### Create Seek Location Hash ###
 This allows for more efficient random access to the original sensor data on HDFS
     
 ```bash
@@ -40,4 +40,12 @@ This allows for more efficient random access to the original sensor data on HDFS
 hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/tag_part_seek"
 ````
 
-# Run Compression Evaluation
+### Run Compression Evaluation ###
+Run all compression methods on hadoop.  Evaluate their performace (space/error), then copy to local.  Then process resulting error/space statistics into a pandas dataframe.  
+``` bash
+./stream.sh ./model_power_data/evaluate_all_tags/stream_config.sh
+hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space_err.txt"
+python ./evaluate_visualize_model/process_date_time_errors_exe.py "${compression_data_dir}/all_space_err"
+```
+
+### Run Meta-Compression ###
