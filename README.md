@@ -14,6 +14,11 @@ In `setup.sh` replace `ion_username` with your ion-21-14 username.  The directio
 
 In SmartGridProject/src, run `source setup.sh`
 
+Build our cython libaries
+```bash 
+Run ./build.sh
+```
+
 ### Load Data into HDFS ###
 Run 
 ```bash 
