@@ -227,7 +227,7 @@ class StepCompressor(Compressor):
     basename = 'step'
 
     def name(self):
-        return '%s-%d'%(basename,self.steps)
+        return '%s-%d'%(self.basename,self.steps)
     
     def __init__(self, steps=10):
         self.steps = steps
@@ -286,7 +286,7 @@ class SVDCompressor(Compressor):
     basename = 'svd'
 
     def name(self):
-        return '%s-%d'%(basename,self.k)
+        return '%s-%d'%(self.basename,self.k)
 
     def __init__(self,k):
         ''' <k> gives the maximum number of singular vectors to use in 
