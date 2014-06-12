@@ -8,7 +8,11 @@ Create a directory, let's say SmartGridProject.
 
 Clone this github directory into SmartGridProject/src
 
-Create another directory SmartGridProject/data.  
+Create another directory SmartGridProject/data.  Create sub-directories:
+```bash
+mkdir $SMART_GRID_DATA/summary_data
+mkdir $SMART_GRID_DATA/compression
+```
 
 In `setup.sh` replace `ion_username` with your ion-21-14 username.  The directions below are for using the system with username melkherj on ion-21-14.  If you need to preprocess this data again from scratch, you'll need to change `melkherj` to your username.  You will also need to change `melkherj` references in `stream_config.sh` to your username.  
 
@@ -18,6 +22,7 @@ Build our cython libaries:
 ```bash 
 ./build.sh
 ```
+
 
 ### Load Data into HDFS ###
 Run 
@@ -56,6 +61,10 @@ hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space
 Load the notebook `notebooks/ChooseBestCompressors.ipynb`
 
 If you wish to copy this evaluation data to your local machine:
-`scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt `
+```bash
+scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt
+scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/summary_data/tag_part_seek <your local root>/data/summary_data/tag_part_seek
+```
+
 
 ### Run Meta-Compression ###
