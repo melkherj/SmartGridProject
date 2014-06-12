@@ -41,7 +41,8 @@ hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/tag_p
 ````
 
 ### Run Compression Evaluation ###
-Run all compression methods on hadoop.  Evaluate their performace (space/error), then copy to local.  Then process resulting error/space statistics into a pandas dataframe.  
+Run all compression methods on hadoop.  Copy the '^'-separated file giving space/error tradeoff per compressor from HDFS to local.  Then process resulting error/space statistics into a pandas dataframe.  
+
 ``` bash
 ./stream.sh ./model_power_data/evaluate_all_tags/stream_config.sh
 hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space_err.txt"
