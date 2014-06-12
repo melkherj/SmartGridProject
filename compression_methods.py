@@ -18,7 +18,8 @@ def encode_timestamp_date(d):
 
 # Best compressor for each sensor
 best_path = os.path.join(os.environ['compression_data_dir'],'best.pandas')
-best = pd.load(best_path)
+if os.path.exists(best_path):
+    best = pd.load(best_path)
 
 p = 0.5
 dim = 1440
