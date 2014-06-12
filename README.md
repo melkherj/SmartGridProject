@@ -15,7 +15,10 @@ In `setup.sh` replace `ion_username` with your ion-21-14 username.  The directio
 In SmartGridProject/src, run `source setup.sh`
 
 # Load Data into HDFS #
-Run ```bash hdfs -ls /user/melkherj/unprocessed_power_csvs```
+Run 
+```bash 
+hdfs -ls /user/melkherj/unprocessed_power_csvs
+```
 This should report: `No such file or directory.`
 
 ```bash
