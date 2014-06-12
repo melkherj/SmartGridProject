@@ -8,4 +8,4 @@ Create a directory, let's say SmartGridProject.
 
 Clone this github directory into SmartGridProject/src
 
-You will need to create another directory SmartGridProject/data.  
+Create another directory SmartGridProject/data.  
