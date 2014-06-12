@@ -155,7 +155,7 @@ class WaveletCompressor(Compressor):
     basename = 'wavelet'
 
     def name(self):
-        return '%s-%s-%d'%(self.basename, self.wavelet, self.res)
+        return '%s-%d-%s'%(self.basename, self.res, self.wavelet)
     
     def __init__(self,k,wavelet='haar'):
         self.res = k #levels of wavelets to keep
