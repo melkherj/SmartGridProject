@@ -51,8 +51,9 @@ Run all compression methods on hadoop.  Copy the '^'-separated file giving space
 ``` bash
 ./stream.sh ./model_power_data/evaluate_all_tags/stream_config.sh
 hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space_err.txt"
-python ./evaluate_visualize_model/process_date_time_errors_exe.py "${compression_data_dir}/all_space_err"
 ```
+
+Load the notebook `notebooks/ChooseBestCompressors.ipynb`
 
 If you wish to copy this evaluation data to your local machine:
 `scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt `
