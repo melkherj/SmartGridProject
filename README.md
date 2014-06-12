@@ -18,6 +18,8 @@ In SmartGridProject/src, run `source setup.sh`
 ```bash
 hdfs -copyFromLocal /oasis/projects/nsf/csd181/melkherj/PI_data/PI_datasets/oledb_phase1 /user/melkherj/unprocessed_power_csvs
 ```
+This won't work if the file `/user/melkherj/unprocessed_power_csvs` in hdfs already exists
+
 # Preprocess data in HDFS #
 Run: 
 ```bash
