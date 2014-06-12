@@ -55,6 +55,6 @@ python ./evaluate_visualize_model/process_date_time_errors_exe.py "${compression
 ```
 
 If you wish to copy this evaluation data to your local machine:
-`scp <your local root>/data/compression/all_space_err.txt <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt`
+`scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt `
 
 ### Run Meta-Compression ###
