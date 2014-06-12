@@ -7,7 +7,7 @@ echo ""
 
 # Clean
 rm -rf build
-rm process_date_time_errors.c
-mv src/evaluate_visualize_model/*.so .
-rmdir src/evaluate_visualize_model
+#rm piecewise.c
+mv src/piecewise/*.so .
+rmdir src/piecewise
 rmdir src
