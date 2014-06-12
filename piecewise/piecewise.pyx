@@ -1,45 +1,54 @@
+# cython: profile=True
+
 import numpy as np
 cimport numpy as np
 import pandas as pd
+cimport cython
 
 FTYPE = np.float32
 ctypedef np.float32_t FTYPE_t
 ITYPE = np.int32
 ctypedef np.int32_t ITYPE_t
 
-def L_fun(x,i1,i2):
-    ''' Cost of best-fit line for range of values [i1,i2) '''
-    return np.std(x[i1:i2+1])**2
+cdef int max_segment_length = 100 #optimal takes too long to compute
 
-def precompute_L(x):
+@cython.boundscheck(False)
+def precompute_L(np.ndarray[FTYPE_t, ndim=1] x,np.ndarray[FTYPE_t, ndim=2] L):
+    ''' Precompute MSE for each constant interval '''
     cdef int i,l,T
     T = len(x)
     # default to positive infinity
-    cdef np.ndarray L = np.ones((T,T),dtype=FTYPE) / np.zeros((T,T),dtype=FTYPE)
-    cdef np.ndarray stds
-    for l in range(1,T+1):
-        stds = pd.rolling_std(x,l,ddof=0)[l-1:]
-        for i,s in enumerate(stds):
-            L[i,i+l-1] = s**2
-    return L
-    
-def optimal_piecewise_constant(np.ndarray x,int k):
+    cdef np.ndarray[FTYPE_t,ndim=1] stds
+    cdef np.ndarray z
+    #range(1,T+1): => optimal requires considering segments up to length T
+    for l in range(1,max_segment_length+1): #only consider 100-length-segments 
+        #stds = pd.rolling_std(x,l,ddof=0)[l-1:]
+        #for i,s in enumerate(stds):
+        #    L[i,i+l-1] = s**2
+        #z = pd.rolling_std(x,l,ddof=0)
+        stds = np.array(pd.rolling_std(x,l,ddof=0),dtype=np.float32)
+        #for i in range(l-1,T):
+        #    L[i-(l-1),i] = stds[i]**2
+   
+@cython.boundscheck(False) 
+def optimal_piecewise_constant(np.ndarray[FTYPE_t, ndim=1] x, int k):
     ''' Given a time-series <x>, return ts,xs
         ts the *start* indices of constant intervals
         xs gives the values of each of the intervals
         len(ts) is <k>, the number of intervals '''
         
     # Compute the minimal cost and best breakpoints
-    cdef np.ndarray L
     cdef ITYPE_t j,t,T,dec,curr_dec
     cdef FTYPE_t opt,curr_opt
     T = len(x)
     #best MSE at each point
-    cdef np.ndarray OPT = np.zeros((T,k),dtype=FTYPE) 
+    cdef np.ndarray[FTYPE_t, ndim=2] OPT = np.zeros((T,k),dtype=FTYPE) 
     #optimal decision at each time t -- previous segment break-point
-    cdef np.ndarray DEC = np.zeros((T,k),dtype=ITYPE) 
+    cdef np.ndarray[ITYPE_t, ndim=2] DEC = np.zeros((T,k),dtype=ITYPE) 
+    cdef np.ndarray[FTYPE_t, ndim=2] L = np.zeros((T,T),dtype=FTYPE)
     # Precompute L
-    L = precompute_L(x)
+    precompute_L(x,L)
+    return 
     for t in range(T):
         OPT[t,0] = L[0,t]
     for j in range(1,k):
@@ -48,6 +57,8 @@ def optimal_piecewise_constant(np.ndarray x,int k):
             #dec,opt are this breakpoint and the total cost respectively
             dec = t-1
             opt = float("+inf")
+            # since length of segment bounded, only go down to t-max_seg+1
+            #for curr_dec in range(t,j,-1): #t downto j+1 inclusive
             for curr_dec in range(t,j,-1): #t downto j+1 inclusive
                 if L[curr_dec,t] >= opt: #can't do better, L will only increase
                     break

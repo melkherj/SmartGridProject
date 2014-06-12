@@ -7,7 +7,7 @@ echo ""
 
 # Clean
 rm -rf build
-rm piecewise.c
+#rm piecewise.c
 mv src/piecewise/*.so .
 rmdir src/piecewise
 rmdir src
