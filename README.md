@@ -19,7 +19,7 @@ Run
 ```bash 
 hdfs -ls /user/melkherj/unprocessed_power_csvs
 ```
-This should report: `No such file or directory.`
+This should report: `No such file or directory.`  If it doesn't, you should either: skip this step and use the existing data, or `hdfs -rmr` the existing data and 
 
 ```bash
 hdfs -copyFromLocal /oasis/projects/nsf/csd181/melkherj/PI_data/PI_datasets/oledb_phase1 /user/melkherj/unprocessed_power_csvs
@@ -44,4 +44,4 @@ hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/tag_p
 
 
 # TODO #
-Remove `melkherj` references in `stream_config.sh` files.  Make these refer to `ion_username` in `setup.sh`
+Remove `melkherj` references in src.  Make these refer to `ion_username` in `setup.sh`
