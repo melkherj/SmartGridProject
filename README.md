@@ -54,4 +54,7 @@ hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space
 python ./evaluate_visualize_model/process_date_time_errors_exe.py "${compression_data_dir}/all_space_err"
 ```
 
+If you wish to copy this evaluation data to your local machine:
+`scp <your local root>/data/compression/all_space_err.txt <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt`
+
 ### Run Meta-Compression ###
