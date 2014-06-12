@@ -56,8 +56,10 @@ hdfs -getmerge /user/melkherj/all_space_err.txt "$compression_data_dir/all_space
 Load the notebook `notebooks/ChooseBestCompressors.ipynb`
 
 If you wish to copy this evaluation data to your local machine:
-`scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt `
-`scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/summary_data/tag_part_seek <your local root>/data/summary_data/tag_part_seek`
+```bash
+scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/all_space_err.txt <your local root>/data/compression/all_space_err.txt
+scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_data/compression/summary_data/tag_part_seek <your local root>/data/summary_data/tag_part_seek
+```
 
 
 ### Run Meta-Compression ###
