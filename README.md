@@ -10,7 +10,7 @@ Clone this github directory into SmartGridProject/src
 
 Create another directory SmartGridProject/data.  
 
-In `setup.sh` replace `ion_username` with your ion-21-14 username
+In `setup.sh` replace `ion_username` with your ion-21-14 username.  The directions below are for using the system with username melkherj on ion-21-14.  If you need to preprocess this data again from scratch, you'll need to change `melkherj` to your username.  You will also need to change `melkherj` references in `stream_config.sh` to your username.  
 
 In SmartGridProject/src, run `source setup.sh`
 
@@ -41,4 +41,4 @@ hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/tag_p
 
 
 # TODO #
-Remove `melkherj` references in stream_config.sh files.  Make these refer to `ion_username` in `setup.sh`
+Remove `melkherj` references in `stream_config.sh` files.  Make these refer to `ion_username` in `setup.sh`
