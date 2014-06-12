@@ -1,6 +1,6 @@
 #Environment variables used for running the hadoop streaming command
 mapper=/bin/cat
-reducer="$SMART_GRID_SRC/model_power_data/compress_all_tags/reduce.py"
+reducer="$SMART_GRID_SRC/model_power_data/evaluate_all_tags/reduce.py"
 map_tasks=50
 reduce_tasks=50
 input=/user/melkherj/clean_preprocessed_power_data

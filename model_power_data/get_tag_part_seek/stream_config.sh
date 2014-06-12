@@ -1,7 +1,7 @@
 #Environment variables used for running the hadoop streaming command
 mapper="$SMART_GRID_SRC/model_power_data/get_tag_part_seek/map.py"
 reducer=/bin/cat
-map_tasks=50
+map_tasks=50 #make sure input file size is smaller than mapred.min.split.size
 reduce_tasks=50
 input=/user/melkherj/preprocessed_power_data
 output=/user/melkherj/tag_part_seek
