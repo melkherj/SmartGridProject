@@ -41,7 +41,3 @@ hdfs -getmerge /user/melkherj/tag_part_seek "$SMART_GRID_DATA/summary_data/tag_p
 ````
 
 # Run Compression Evaluation
-
-
-# TODO #
-Remove `melkherj` references in src.  Make these refer to `ion_username` in `setup.sh`
