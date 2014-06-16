@@ -1,3 +1,5 @@
+from scipy.stats import linregress
+import pylab
 import sys, os
 sys.path.append(os.environ['SMART_GRID_SRC'])
 from matplotlib.pyplot import *
@@ -6,6 +8,7 @@ import random, pickle
 from get_tag_series import part_tag_dict, get_tag_series
 from serialize_tag_date import decode_date
 import datetime
+import numpy as np
 from numpy.linalg import norm
 from operator import itemgetter
 #import statsmodels.tsa.api as tsa
@@ -24,8 +27,11 @@ import re
 import pywt
 import matplotlib.cm as cm
 from sklearn.cluster import KMeans
-
+from nltk import FreqDist
 from IPython.display import HTML
+
+pylab.rcParams['figure.figsize'] = (12.0, 7.0)
+
 toggle_sections = HTML("""
 <script type="text/javascript">
      show=true;
@@ -43,6 +49,10 @@ toggle_sections = HTML("""
  </script>
  <a id="toggle" href="javascript:toggle()" target="_self">toggle sections</a>""")
 
+def tag_type(tag):
+    ''' The type of sensor, eg air flow/outside temperature/...'''
+    return tag.split('.')[-1]
+
 def choose_compressor(se, max_error):
     ''' Return the best compressor and complexity hyperparameter k
         best is measured by lowest error, bounding space'''
@@ -57,7 +67,15 @@ def get_space_mse(se):
     return se[:n/2],se[n/2:]
 
 def get_space_mse_tradeoff(se):
-    ''' Given a part of the space vs. error dataframe'''
+    ''' Given a dataframe <se> with columns 'compressor' and 'space_err',
+        'compressor' giving the compression method used
+        'space_err' giving a numpy array for the tradeoff between space and error
+        (first half of array gives #floats taken, second half gives errors)
+        
+        Return a DataFrame <tradeoff> with columns 'compressor','error','k','space'
+        <tradeoff> is sorted increasing by 'space'
+        space is the space taken per compression method, 'compressor' is the method', 'error' is the error (we've used MSE so far, could be anything), and 'k' is the complexity hyperparameter of the compression methods used.  
+        '''
     spaces = []
     errs = []
     compressors = []
@@ -77,50 +95,83 @@ def get_space_mse_tradeoff(se):
         decreased = tradeoff['error'].diff() < 0
         decreased[0] = True
         tradeoff = tradeoff[decreased]
+    tradeoff.index = tradeoff['space']
     return tradeoff
 
-def bin_space_mse_tradeoff(tradeoff):
-    ''' Binning by compression ratios of 1 + [10**(-2) .. 10**5]
-        Select the lowest error with at least the given compression ratio
-        Return just the errors '''
-    crs = 1.0+10.0**arange(-3,4) #compression ratios
+def choose_space_binning(tradeoff,k=10):
+    ''' reduce space/error tradeoff dimensionality by clustering space in log-space
+        Given a tradeoff curve, return <k> spaces that give a good representation of
+        the entire space curve '''
+    spaces = tradeoff['space'].values
+    model = KMeans(n_clusters=k)
+    labels = model.fit_predict(np.reshape(np.log(spaces),(len(spaces),1)))
+    labels_seen = set([]) #clusters labels we've seen so far
+    spaces2 = [] #just k representative spaces chosen, after clustering in log space
+    # choose 10 spaces: smallest space where cluster label was seen
+    for l,s in zip(labels,spaces):
+        if not (l in labels_seen):
+            spaces2.append(s)
+            labels_seen |= set([l])
+    return np.array(spaces2)
+
+def plot_space_mse_tradeoff(tradeoff):
+    ''' <tradeoff> is a dataframe returned by get_space_mse_tradeoff
+        This plots the space/error tradeoff on a log-log plot, 
+        colored by compression method.  
+        See the description of the tradeoff dataframe in the 
+        get_space_mse_tradeoff function '''
+    clf()
+    xscale('log')
+    yscale('log')
+    compressor_list = list(set(tradeoff['compressor']))
+    colors = iter(cm.rainbow(np.linspace(0, 1, len(compressor_list))))
+    for c in compressor_list:
+        t = tradeoff[tradeoff['compressor'] == c]
+        scatter(t['space'],t['error'],label=c,color=next(colors),s=20,marker='.')
+    legend(bbox_to_anchor=(1.3,0.5))
+    xlabel('space')
+    ylabel('error')
+
+def apply_space_binning(spaces2, tradeoff):
+    ''' Given the binning of spaces <spaces2>, and a tradeoff curve 
+        with spaces not necessily in the range of spaces2, 
+        map the space index of tradeoff to spaces2
+        This gives the error e each s in spaces2, where e is the smallest
+        error in tradeoff such that the corresponding space in tradeoff 
+        <= s '''
+    k = len(spaces2) #number of space/err points to keep
+    spaces = np.zeros((k,))
     i = 0
-    errs = ones(len(crs))
-    for _,row in tradeoff.iterrows():
-        if row['compression_ratio'] >= crs[i]:
-            errs[i] = row['error']
+    s_last = tradeoff.index[0]
+    for s in tradeoff.index:
+        while (i < k) and (s > spaces2[i]):
+            spaces[i] = s_last
             i += 1
-            if i >= len(crs):
-                break
-    return pd.Series(errs)
+        if i == k:
+            break
+        # s2[i] is now the smallest space >= s
+          # e is monotonically decreasing
+        spaces[i] = s
+        # so e2[s2[i]] is now the smallest err we've examined so far
+        # such that space does not exceed s2[i]
+        s_last = s
+    if i < k-1:
+        spaces[i:] = spaces[i]
+    return tradeoff.ix[spaces]
+
+def space_err_features(spaces, se):
+    ''' create a feature vector from the space-error tradeoff curve
+        this is log(spaces), log(errors) concatenated
+        '''
+    tradeoff = get_space_mse_tradeoff(se)
+    tradeoff = apply_space_binning(spaces,tradeoff)
+    #return np.concatenate([np.log(tradeoff['space'].values),
+    return tradeoff['error'].values
 
 def choose_space_mse(se):
     s,e = get_space_mse(se)
     i = random.randint(0,len(s)-1)
     return s[i],e[i]
-
-def plot_space_err(se):
-    # Choose random space/error from this sensor-compressor
-    
-    compressor_list = sorted(list(set(se['compressor'])))
-    compressor_vocab = dict((v,i) for i,v in enumerate(compressor_list))
-    colors = iter(mpl.cm.rainbow(np.linspace(0, 1, len(compressor_list))))
-    
-    pylab.rcParams['figure.figsize'] = (8.0, 7.0)
-    for i,compressor in enumerate(compressor_list):
-        # Choose random sensor-space compressor pairs
-        se2 = sample_df(se[se['compressor'] == compressor],100)
-        spaces,errs = zip(*se2['space_err'].apply(choose_space_mse))
-        scatter(spaces,errs,label=compressor,color=next(colors),s=10,marker='.')
-        #c=map(compressor_vocab.__getitem__,se2['compressor']),
-    legend(bbox_to_anchor=(1.5,0.5))
-    xlabel('compression ratio')
-    ylabel('error')
-    xscale('log')
-    yscale('log')
-    ylim(10**(-5),10**5)
-    xlim(10**(-2),10**7)
-    show()
 
 def meta_decompress_tag(df_compressed, tag, context):
     ''' Given meta-compressed representation in df_compressed and context, 
