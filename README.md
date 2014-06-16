@@ -1,9 +1,22 @@
-SmartGridProject
-================
-
+# Overview #
 A system for compressing smart grid data, and allowing queries on the compressed representation.  
 
-### Getting Started ###
+# Notebooks with Results #
+
+### Piecewise ###
+Profiles/visualize optimal piecewise-constant (wrt MSE) 1D signal fits.  
+
+### MetaDecompressionExample ###
+This gives an example of loading meta-compression, and reconstructing an example. 
+
+### ChooseBestCompressors ###
+A notebook that loads space/error statistics, and selects the compressor/complexity hyperparameter to use per sensor.  This is saved in a DataFrame, to be loaded into a meta-compression mapreduce job. 
+
+### TradeoffBasedAnalysis ###
+A reasonably-well-documented analysis of sensor grouping, using the space/error tradeoff information
+
+# Getting Started #
+### Download, build, set env ###
 Create a directory, let's say SmartGridProject.  
 
 Clone this github directory into SmartGridProject/src
@@ -68,6 +81,4 @@ scp <your username>@ion-21-14.sdsc.edu:/oasis/projects/nsf/csd181/melkherj/PI_da
 
 
 ### Run Meta-Compression ###
-
-# Summary of Notebooks #
 
